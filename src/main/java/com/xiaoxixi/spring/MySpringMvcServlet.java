@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ public class MySpringMvcServlet extends HttpServlet {
     private static Map<String, Class> iocMap = new HashMap<String, Class>();
 
     private static Map<String, Method> settingMap = new HashMap<String, Method>();
+
     @Override
     public void init() throws ServletException {
         super.init();
@@ -51,11 +53,15 @@ public class MySpringMvcServlet extends HttpServlet {
         File dir = new File(url.getFile());
         for(File file : dir.listFiles()) {
             if (file.isDirectory()) {
-                packageName = packageName + "." + dir.getName();
+                packageName = packageName + "." + file.getName();
                 scanPackage(packageName);
             } else {
                 classNames.add(packageName + "." + file.getName());
             }
+        }
+        System.out.println("===========");
+        for(String className : classNames) {
+            System.out.println(className);
         }
     }
 
@@ -88,7 +94,7 @@ public class MySpringMvcServlet extends HttpServlet {
             if (clazz.isAnnotationPresent(RestController.class)) {
                 // 获取controller中的所有方法
                 Method[] methods = clazz.getMethods();
-                Field[] fileds = clazz.getFields();
+                Field[] fields = clazz.getFields();
                 for (Method method : methods) {
                     if (method.isAnnotationPresent(RequestMapping.class)) {
                         RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
@@ -96,7 +102,7 @@ public class MySpringMvcServlet extends HttpServlet {
                         settingMap.put(mapping, method);
                     }
                 }
-                for (Field field : fileds) {
+                for (Field field : fields) {
                     field.setAccessible(true);
                     if (field.isAnnotationPresent(Autowired.class)) {
                         Autowired autowired = field.getAnnotation(Autowired.class);
@@ -108,10 +114,8 @@ public class MySpringMvcServlet extends HttpServlet {
                     }
                 }
             }
-
         }
     }
-
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -121,5 +125,18 @@ public class MySpringMvcServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         super.doPost(req, resp);
+        try {
+            String uri = req.getRequestURI();
+            Method method = settingMap.get(uri);
+            Map<String, String[]> paramsMap = req.getParameterMap();
+            String className = method.getDeclaringClass().getSimpleName();
+            Object result = method.invoke(iocMap.get(className),paramsMap.get("name"));
+            resp.getWriter().print(result);
+            resp.flushBuffer();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
     }
 }
