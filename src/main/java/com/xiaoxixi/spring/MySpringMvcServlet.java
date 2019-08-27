@@ -1,10 +1,10 @@
 package com.xiaoxixi.spring;
 
-import com.xiaoxixi.spring.annotation.Autowired;
-import com.xiaoxixi.spring.annotation.RequestMapping;
-import com.xiaoxixi.spring.annotation.RestController;
-import com.xiaoxixi.spring.annotation.Service;
-
+import com.alibaba.fastjson.JSON;
+import com.xiaoxixi.spring.annotation.MyAutowired;
+import com.xiaoxixi.spring.annotation.MyRequestMapping;
+import com.xiaoxixi.spring.annotation.MyRestController;
+import com.xiaoxixi.spring.annotation.MyService;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -15,10 +15,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * my spring mvc servlet
@@ -27,9 +24,71 @@ public class MySpringMvcServlet extends HttpServlet {
 
     private static List<String> classNames = new ArrayList<String>();
 
-    private static Map<String, Class> iocMap = new HashMap<String, Class>();
+    private static Map<String, Object> iocMap = new HashMap<String, Object>();
 
     private static Map<String, Method> settingMap = new HashMap<String, Method>();
+
+    private static Map<String, Object> mappingClass = new HashMap<String, Object>();
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        try {
+            doDispatch(req, resp);
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        try {
+            doDispatch(req, resp);
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void doDispatch(HttpServletRequest request, HttpServletResponse response) throws IOException, InvocationTargetException, IllegalAccessException {
+        if (settingMap.isEmpty()) {
+            return;
+        }
+        String url = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        url = url.replaceAll(contextPath, "").replaceAll("/+", "/");
+        if (!settingMap.containsKey(url)) {
+            response.getWriter().write("404, NOT FOUND");
+            return;
+        }
+        Method method = settingMap.get(url);
+        // 获取方法的参数列表
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        // 获取请求参数
+        Map<String, String[]> params = request.getParameterMap();
+        Object[] paramValues = new Object[parameterTypes.length];
+        for (int i =0; i < parameterTypes.length; i ++) {
+            String requestParam = parameterTypes[i].getSimpleName();
+            if ("HttpServletRequest".equals(requestParam)) {
+                paramValues[i] = request;
+                continue;
+            }
+            if ("HttpServletResponse".equals(requestParam)) {
+                paramValues[i] = response;
+                continue;
+            }
+            if ("String".equals(requestParam)) {
+                for(Map.Entry<String, String[]> entry: params.entrySet()) {
+                    String value = Arrays.toString(entry.getValue());
+                    paramValues[i] = value;
+                }
+            }
+        }
+        Object result = method.invoke(mappingClass.get(url), paramValues);
+        response.getWriter().write(JSON.toJSONString(result));
+    }
 
     @Override
     public void init() throws ServletException {
@@ -42,6 +101,8 @@ public class MySpringMvcServlet extends HttpServlet {
         setMappings();
     }
 
+
+
     /**
      *
      * @param packageName
@@ -53,10 +114,9 @@ public class MySpringMvcServlet extends HttpServlet {
         File dir = new File(url.getFile());
         for(File file : dir.listFiles()) {
             if (file.isDirectory()) {
-                packageName = packageName + "." + file.getName();
-                scanPackage(packageName);
+                scanPackage(packageName + "/" + file.getName());
             } else {
-                classNames.add(packageName + "." + file.getName());
+                classNames.add((packageName + "/" + file.getName()).replaceAll("/", ".").replace(".class", ""));
             }
         }
         System.out.println("===========");
@@ -72,42 +132,43 @@ public class MySpringMvcServlet extends HttpServlet {
         try {
             for(String className : classNames) {
                 Class<?> clazz = Class.forName(className);
-                if (clazz.isAnnotationPresent(RestController.class)) {
-                    RestController restController = clazz.getAnnotation(RestController.class);
-                    iocMap.put(restController.value(), clazz);
+                if (clazz.isAnnotationPresent(MyRestController.class)) {
+                    MyRestController restController = clazz.getAnnotation(MyRestController.class);
+                    iocMap.put(restController.value(), clazz.newInstance());
                 }
-                if (clazz.isAnnotationPresent(Service.class)) {
-                    Service service = clazz.getAnnotation(Service.class);
-                    iocMap.put(service.value(), clazz);
+                if (clazz.isAnnotationPresent(MyService.class)) {
+                    MyService service = clazz.getAnnotation(MyService.class);
+                    iocMap.put(service.value(), clazz.newInstance());
                 }
             }
-        } catch (ClassNotFoundException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
     }
 
     private void setMappings() {
-        for(Map.Entry<String, Class> entry : iocMap.entrySet()) {
+        for(Map.Entry<String, Object> entry : iocMap.entrySet()) {
             String key = entry.getKey();
-            Class<?> clazz = entry.getValue();
-            if (clazz.isAnnotationPresent(RestController.class)) {
+            Class<?> clazz = entry.getValue().getClass();
+            if (clazz.isAnnotationPresent(MyRestController.class)) {
                 // 获取controller中的所有方法
                 Method[] methods = clazz.getMethods();
-                Field[] fields = clazz.getFields();
+                Field[] fields = clazz.getDeclaredFields();
                 for (Method method : methods) {
-                    if (method.isAnnotationPresent(RequestMapping.class)) {
-                        RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
+                    if (method.isAnnotationPresent(MyRequestMapping.class)) {
+                        MyRequestMapping requestMapping = method.getAnnotation(MyRequestMapping.class);
                         String mapping = requestMapping.value();
                         settingMap.put(mapping, method);
+                        mappingClass.put(mapping, entry.getValue());
                     }
                 }
                 for (Field field : fields) {
                     field.setAccessible(true);
-                    if (field.isAnnotationPresent(Autowired.class)) {
-                        Autowired autowired = field.getAnnotation(Autowired.class);
+                    if (field.isAnnotationPresent(MyAutowired.class)) {
+                        MyAutowired autowired = field.getAnnotation(MyAutowired.class);
                         try {
-                            field.set(iocMap.get(autowired.value()), iocMap.get(autowired.value()));
+                            field.set(entry.getValue(), iocMap.get(autowired.value()));
                         } catch (IllegalAccessException e) {
                             e.printStackTrace();
                         }
@@ -117,26 +178,4 @@ public class MySpringMvcServlet extends HttpServlet {
         }
     }
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        super.doGet(req, resp);
-    }
-
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        super.doPost(req, resp);
-        try {
-            String uri = req.getRequestURI();
-            Method method = settingMap.get(uri);
-            Map<String, String[]> paramsMap = req.getParameterMap();
-            String className = method.getDeclaringClass().getSimpleName();
-            Object result = method.invoke(iocMap.get(className),paramsMap.get("name"));
-            resp.getWriter().print(result);
-            resp.flushBuffer();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        }
-    }
 }

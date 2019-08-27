@@ -1,9 +1,9 @@
 package com.xiaoxixi.spring.service;
 
-import com.xiaoxixi.spring.annotation.Service;
+import com.xiaoxixi.spring.annotation.MyService;
 import com.xiaoxixi.spring.vo.OrderVO;
 
-@Service("orderService")
+@MyService("orderService")
 public class OrderServiceImpl implements OrderService {
 
     public OrderVO queryOrder(String orderNo) {

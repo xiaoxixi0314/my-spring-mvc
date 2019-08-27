@@ -1,19 +1,20 @@
 package com.xiaoxixi.spring.controller;
 
-import com.xiaoxixi.spring.annotation.Autowired;
-import com.xiaoxixi.spring.annotation.RequestMapping;
-import com.xiaoxixi.spring.annotation.RestController;
+import com.xiaoxixi.spring.annotation.MyAutowired;
+import com.xiaoxixi.spring.annotation.MyRequestMapping;
+import com.xiaoxixi.spring.annotation.MyRequestParam;
+import com.xiaoxixi.spring.annotation.MyRestController;
 import com.xiaoxixi.spring.service.OrderService;
 import com.xiaoxixi.spring.vo.OrderVO;
 
-@RestController("orderController")
+@MyRestController("orderController")
 public class OrderController {
 
-    @Autowired("orderService")
+    @MyAutowired("orderService")
     private OrderService orderService;
 
-    @RequestMapping("/order/detail")
-    public OrderVO orderDetail(String orderNo) {
+    @MyRequestMapping("/order/detail")
+    public OrderVO orderDetail(@MyRequestParam(name = "orderNo")String orderNo) {
         return orderService.queryOrder(orderNo);
     }
 }

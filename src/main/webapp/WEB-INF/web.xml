@@ -5,13 +5,14 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee
         http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd">
     <servlet>
-        <servlet-name>my-spring-mvc</servlet-name>
+        <servlet-name>my-servlet</servlet-name>
         <servlet-class>com.xiaoxixi.spring.MySpringMvcServlet</servlet-class>
+        <load-on-startup>0</load-on-startup>
     </servlet>
     
     <servlet-mapping>
-        <servlet-name>my-spring-mvc</servlet-name>
-        <url-pattern>/*</url-pattern>
+        <servlet-name>my-servlet</servlet-name>
+        <url-pattern>/</url-pattern>
     </servlet-mapping>
 
 </web-app>
